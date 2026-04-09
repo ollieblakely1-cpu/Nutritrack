@@ -507,7 +507,7 @@ async function submitLog() {
   conversationHistory.push({ role: 'user', content: input });
 
   try {
-    const response = await fetch('/api/messages', {
+    const response = await fetch('/api/proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
