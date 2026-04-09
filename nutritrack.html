@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NutriTrack — AI Daily Logger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.35);
+      --dim: rgba(255,255,255,0.2);
+      --green: #69f0ae;
+      --red: #ff8a80;
+      --yellow: #ffd166;
+      --teal: #06d6a0;
+      --blue: #118ab2;
+      --pink: #ef476f;
+      --accent1: #00c9a7;
+      --accent2: #845ec2;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    /* HEADER */
+    #header {
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex; align-items: center; gap: 16;
+      background: rgba(10,10,15,0.92);
+      backdrop-filter: blur(20px);
+    }
+    #header-logo {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent1), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; flex-shrink: 0;
+    }
+    #header-title { font-weight: 800; font-size: 16px; letter-spacing: -0.02em; }
+    #header-sub { font-size: 11px; color: var(--muted); letter-spacing: 0.07em; text-transform: uppercase; }
+    #header-badges { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .badge {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 14px; font-size: 12px; color: var(--muted);
+    }
+    #balance-badge {
+      border-radius: 8px; padding: 5px 14px; font-size: 12px; font-weight: 600; display: none;
+    }
+
+    /* MAIN */
+    #main { max-width: 1020px; margin: 0 auto; padding: 32px 24px 120px; }
+
+    /* EMPTY STATE */
+    #empty-state { text-align: center; padding: 80px 20px; }
+    #empty-state .emoji { font-size: 48px; margin-bottom: 16px; }
+    #empty-state h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 10px; }
+    #empty-state p { color: var(--muted); font-size: 14px; line-height: 1.75; max-width: 400px; margin: 0 auto; }
+    #examples { display: flex; gap: 8px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+    .example-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 8px 16px; font-size: 12px;
+      color: var(--muted); cursor: pointer; transition: background 0.2s;
+      font-family: inherit;
+    }
+    .example-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+
+    /* SPINNER */
+    #loading { display: none; text-align: center; padding: 48px 20px; color: var(--muted); font-size: 13px; }
+    .spinner {
+      display: inline-block; width: 24px; height: 24px;
+      border: 2px solid rgba(255,255,255,0.08);
+      border-top-color: var(--accent1);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ERROR */
+    #error-box {
+      display: none;
+      background: rgba(255,100,100,0.08); border: 1px solid rgba(255,100,100,0.2);
+      border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;
+      color: var(--red); font-size: 13px;
+    }
+
+    /* OUTPUT AREA */
+    #output { display: none; animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* MACRO CHIPS */
+    #macro-chips { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .macro-chip {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 16px; flex: 1; min-width: 130px;
+    }
+    .macro-chip .chip-label {
+      color: rgba(255,255,255,0.4); font-size: 11px; letter-spacing: 0.1em;
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .macro-chip .chip-value {
+      font-size: 22px; font-weight: 700; font-family: 'DM Mono', monospace;
+    }
+    .macro-chip .chip-target { font-size: 12px; color: var(--dim); margin-left: 4px; }
+    .macro-chip .chip-row { display: flex; align-items: baseline; gap: 4px; margin-bottom: 8px; }
+    .progress-track {
+      background: rgba(255,255,255,0.06); border-radius: 4px; height: 6px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 4px;
+      transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    }
+    .chip-pct { font-size: 11px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+
+    /* TABLE */
+    #table-wrap {
+      overflow-x: auto; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    #food-table {
+      width: 100%; border-collapse: collapse; table-layout: fixed;
+    }
+    #food-table col.col-cat  { width: 130px; }
+    #food-table col.col-food { width: auto; }
+    #food-table col.col-cal  { width: 110px; }
+    #food-table col.col-pro  { width: 100px; }
+    #food-table col.col-carb { width: 100px; }
+    #food-table col.col-fat  { width: 90px; }
+
+    #food-table thead tr { background: rgba(255,255,255,0.04); }
+    #food-table th {
+      padding: 12px 14px; font-size: 11px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: rgba(255,255,255,0.32);
+      font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    #food-table th.right { text-align: right; }
+
+    #food-table td {
+      padding: 9px 14px; font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: middle;
+    }
+    #food-table td.cat-cell {
+      font-weight: 600; font-size: 12px; letter-spacing: 0.05em;
+      text-transform: uppercase; color: rgba(255,255,255,0.5);
+      border-right: 1px solid rgba(255,255,255,0.06);
+      vertical-align: top; padding-top: 12px;
+    }
+    #food-table td.cat-cell .cat-kcal { font-size: 11px; color: rgba(255,255,255,0.25); font-weight: 400; margin-top: 2px; }
+    #food-table td.food-cell { color: rgba(255,255,255,0.85); }
+    #food-table td.num { text-align: right; font-family: 'DM Mono', monospace; color: rgba(255,255,255,0.7); }
+    #food-table td.neg { text-align: right; font-family: 'DM Mono', monospace; color: var(--red); }
+
+    #food-table tr.divider-row { background: rgba(255,255,255,0.015); }
+    #food-table tr.divider-row td:first-child { color: rgba(255,255,255,0.4); font-style: italic; font-size: 12px; }
+
+    #food-table tr.subtotal-row { background: rgba(255,255,255,0.03); border-top: 2px solid rgba(255,255,255,0.1); }
+    #food-table tr.subtotal-row td { font-weight: 700; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+    #food-table tr.subtotal-row td.num { color: #fff; }
+
+    #food-table tr.total-row { background: rgba(255,255,255,0.05); border-top: 2px solid rgba(255,255,255,0.12); }
+    #food-table tr.total-row td { font-weight: 800; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; }
+    #food-table tr.total-row td.num { color: #fff; text-align: right; font-family: 'DM Mono', monospace; }
+    #food-table .net-label { font-size: 11px; margin-top: 3px; }
+
+    /* SUMMARY CARDS */
+    #summary-cards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px; margin-top: 20px;
+    }
+    .summary-card {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .summary-card .sc-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 6px; }
+    .summary-card .sc-val { font-size: 15px; font-weight: 600; }
+
+    /* END NOTES */
+    #end-notes {
+      display: none;
+      margin-top: 16px;
+      background: rgba(255,209,102,0.06); border: 1px solid rgba(255,209,102,0.15);
+      border-radius: 10px; padding: 14px 18px;
+      font-size: 13px; color: rgba(255,209,102,0.9); line-height: 1.65;
+    }
+
+    /* WEEKLY TABLE */
+    #weekly-wrap {
+      display: none;
+      overflow-x: auto; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+      margin-top: 24px;
+    }
+    #weekly-header {
+      padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+      color: rgba(255,255,255,0.32); font-weight: 600;
+    }
+    #weekly-table { width: 100%; border-collapse: collapse; }
+    #weekly-table th {
+      padding: 10px 14px; text-align: left;
+      font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: rgba(255,255,255,0.28); font-weight: 600;
+      background: rgba(255,255,255,0.03);
+    }
+    #weekly-table td {
+      padding: 9px 14px; font-size: 12px;
+      font-family: 'DM Mono', monospace;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    #weekly-table td.day-name { font-family: 'DM Sans', sans-serif; font-weight: 600; color: rgba(255,255,255,0.8); }
+
+    /* INPUT BAR */
+    #input-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(10,10,15,0.96);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 16px 24px;
+      z-index: 200;
+    }
+    #input-inner { max-width: 1020px; margin: 0 auto; display: flex; gap: 12px; align-items: flex-end; }
+    #input-wrap {
+      flex: 1;
+      background: var(--surface); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px; padding: 12px 16px;
+      transition: border-color 0.2s;
+    }
+    #input-wrap:focus-within { border-color: rgba(255,255,255,0.22); }
+    #user-input {
+      width: 100%; background: transparent; border: none; outline: none;
+      color: #fff; font-size: 14px; line-height: 1.6;
+      font-family: 'DM Sans', sans-serif;
+      resize: none;
+    }
+    #user-input::placeholder { color: rgba(255,255,255,0.2); }
+    #submit-btn {
+      background: linear-gradient(135deg, var(--accent1), var(--accent2));
+      border: none; border-radius: 12px; padding: 14px 24px;
+      color: #fff; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+      font-family: 'DM Sans', sans-serif;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    #submit-btn:disabled {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.2);
+      cursor: not-allowed;
+    }
+    #input-hint { max-width: 1020px; margin: 6px auto 0; font-size: 11px; color: rgba(255,255,255,0.14); }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="header-logo">⚡</div>
+  <div>
+    <div id="header-title">NutriTrack</div>
+    <div id="header-sub">AI-Powered Daily Log</div>
+  </div>
+  <div id="header-badges">
+    <div class="badge" id="date-badge" style="display:none"></div>
+    <div id="balance-badge"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- Empty state -->
+  <div id="empty-state">
+    <div class="emoji">🥗</div>
+    <h2>Start logging your day</h2>
+    <p>Log foods and exercise in natural language.<br>
+      Try: <em style="color:rgba(255,255,255,0.55)">"Breakfast: 2 eggs, toast, coffee with milk"</em>
+    </p>
+    <div id="examples">
+      <button class="example-btn" onclick="fillExample('2 eggs + oatmeal for breakfast')">2 eggs + oatmeal for breakfast</button>
+      <button class="example-btn" onclick="fillExample('30 min run, moderate pace')">30 min run, moderate pace</button>
+      <button class="example-btn" onclick="fillExample('Chicken salad for lunch')">Chicken salad for lunch</button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Calculating nutrition data…</div>
+  </div>
+
+  <!-- Error -->
+  <div id="error-box"></div>
+
+  <!-- Output -->
+  <div id="output">
+    <!-- Macro chips -->
+    <div id="macro-chips">
+      <div class="macro-chip" id="chip-cal">
+        <div class="chip-label">Calories</div>
+        <div class="chip-row"><span class="chip-value" style="color:#ffd166" id="cv-cal">0</span><span class="chip-target">/ 2152</span></div>
+        <div class="progress-track"><div class="progress-fill" id="pb-cal" style="background:#ffd166;width:0%"></div></div>
+        <div class="chip-pct" id="pp-cal">0%</div>
+      </div>
+      <div class="macro-chip" id="chip-pro">
+        <div class="chip-label">Protein</div>
+        <div class="chip-row"><span class="chip-value" style="color:#06d6a0" id="cv-pro">0</span><span class="chip-target">/ 150g</span></div>
+        <div class="progress-track"><div class="progress-fill" id="pb-pro" style="background:#06d6a0;width:0%"></div></div>
+        <div class="chip-pct" id="pp-pro">0%</div>
+      </div>
+      <div class="macro-chip" id="chip-carb">
+        <div class="chip-label">Carbs</div>
+        <div class="chip-row"><span class="chip-value" style="color:#118ab2" id="cv-carb">0</span><span class="chip-target">/ 263g</span></div>
+        <div class="progress-track"><div class="progress-fill" id="pb-carb" style="background:#118ab2;width:0%"></div></div>
+        <div class="chip-pct" id="pp-carb">0%</div>
+      </div>
+      <div class="macro-chip" id="chip-fat">
+        <div class="chip-label">Fat</div>
+        <div class="chip-row"><span class="chip-value" style="color:#ef476f" id="cv-fat">0</span><span class="chip-target">/ 60g</span></div>
+        <div class="progress-track"><div class="progress-fill" id="pb-fat" style="background:#ef476f;width:0%"></div></div>
+        <div class="chip-pct" id="pp-fat">0%</div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div id="table-wrap">
+      <table id="food-table">
+        <colgroup>
+          <col class="col-cat">
+          <col class="col-food">
+          <col class="col-cal">
+          <col class="col-pro">
+          <col class="col-carb">
+          <col class="col-fat">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Food / Activity</th>
+            <th class="right">Calories</th>
+            <th class="right">Protein (g)</th>
+            <th class="right">Carbs (g)</th>
+            <th class="right">Fat (g)</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Summary cards -->
+    <div id="summary-cards">
+      <div class="summary-card"><div class="sc-label">Intake vs Target</div><div class="sc-val" id="sc-intake">—</div></div>
+      <div class="summary-card"><div class="sc-label">Energy Balance</div><div class="sc-val" id="sc-balance">—</div></div>
+      <div class="summary-card"><div class="sc-label">Protein</div><div class="sc-val" id="sc-protein">—</div></div>
+    </div>
+
+    <!-- End notes -->
+    <div id="end-notes"></div>
+
+    <!-- Weekly -->
+    <div id="weekly-wrap">
+      <div id="weekly-header">Weekly Tracker</div>
+      <table id="weekly-table">
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Net kcal</th>
+            <th>Protein (g)</th>
+            <th>Daily Deficit</th>
+            <th>Cumulative Deficit</th>
+            <th>Wkly Avg kcal</th>
+          </tr>
+        </thead>
+        <tbody id="weekly-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- INPUT BAR -->
+<div id="input-bar">
+  <div id="input-inner">
+    <div id="input-wrap">
+      <textarea id="user-input" rows="2"
+        placeholder="Log food or exercise… e.g. 'Lunch: grilled chicken breast, rice, salad'"></textarea>
+    </div>
+    <button id="submit-btn" onclick="submitLog()">Log →</button>
+  </div>
+  <div id="input-hint">Press Enter to log · Shift+Enter for new line · Keep adding entries throughout the day</div>
+</div>
+
+<script>
+const TARGETS = { calories: 2152, protein: 150, carbs: 263, fat: 60 };
+let conversationHistory = [];
+
+const SYSTEM_PROMPT = `You are a daily nutrition + energy expenditure tracker AI. The user will log foods eaten and exercise throughout the day.
+
+Your job:
+- Research/estimate calories + macros for each item using standard nutrition data from descriptions (user won't give macro numbers).
+- Keep one running log for the day and update it each time entries are added.
+- Output must be concise and table-driven.
+
+Fixed targets:
+- Calories (intake target): 2,152 kcal
+- Protein: 150 g
+- Carbs: 263 g
+- Fats: 60 g
+
+Fixed daily energy components:
+- BMR: 1,722 kcal (burned) show as -1,722
+- TEF: Thermic Effect of Food = 10% of total intake calories (burned during digestion) show as negative: -(0.10 x intake)
+- NEAT: Non-exercise activity thermogenesis = daily movement calories outside formal exercise (burned) estimate and show as negative (e.g., -150)
+- Exercise: calories burned from logged workouts show as negative
+
+CRITICAL: You MUST respond ONLY with valid JSON. No markdown, no explanation, no preamble. Just raw JSON.
+
+Response format (strict JSON):
+{
+  "date": "Day, Month DD YYYY",
+  "meals": [
+    {
+      "category": "Breakfast",
+      "subtotal_calories": 450,
+      "items": [
+        { "food": "2 eggs scrambled", "calories": 180, "protein": 12, "carbs": 2, "fat": 14 },
+        { "food": "2 slices whole wheat toast", "calories": 160, "protein": 6, "carbs": 28, "fat": 2 }
+      ]
+    }
+  ],
+  "totals": {
+    "intake_calories": 1850,
+    "intake_protein": 120,
+    "intake_carbs": 200,
+    "intake_fat": 55,
+    "tef": -185,
+    "bmr": -1722,
+    "neat": -150,
+    "exercise_calories": -300,
+    "net_balance": -507,
+    "balance_label": "deficit"
+  },
+  "summary": {
+    "intake_vs_target": "1850 / 2152",
+    "balance_summary": "-507 kcal deficit",
+    "protein_summary": "120 / 150g"
+  },
+  "weekly": [
+    { "day": "Monday", "net_calories": -507, "protein": 120, "daily_deficit": -507, "cumulative_deficit": -507, "weekly_avg": -507 }
+  ],
+  "end_notes": "Protein short by ~30g — prioritize lean protein tomorrow."
+}
+
+Rules:
+- Categories: Breakfast, Lunch, Dinner, Snacks / Other
+- Energy balance = Intake + TEF + BMR + NEAT + Exercise (all negative except intake)
+- Negative balance = deficit, positive = surplus
+- Include all logged items from the ENTIRE conversation in your response, not just the latest entry
+- Always include the full day's data with all previously logged items plus the new ones
+- Weekly tracker: only include days that have been logged`;
+
+function fmt(n) {
+  if (n == null) return '—';
+  return Math.round(n).toLocaleString();
+}
+
+function fillExample(text) {
+  document.getElementById('user-input').value = text;
+  document.getElementById('user-input').focus();
+}
+
+document.getElementById('user-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    submitLog();
+  }
+});
+
+async function submitLog() {
+  const input = document.getElementById('user-input').value.trim();
+  if (!input) return;
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+
+  document.getElementById('user-input').value = '';
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('output').style.display = 'none';
+  document.getElementById('error-box').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+
+  conversationHistory.push({ role: 'user', content: input });
+
+  try {
+    const response = await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: conversationHistory
+      })
+    });
+
+    const data = await response.json();
+    const text = (data.content || []).map(b => b.text || '').join('');
+    conversationHistory.push({ role: 'assistant', content: text });
+
+    const clean = text.replace(/```json|```/g, '').trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch {
+      const m = clean.match(/\{[\s\S]*\}/);
+      if (m) parsed = JSON.parse(m[0]);
+      else throw new Error('Could not parse JSON response');
+    }
+
+    renderData(parsed);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('output').style.display = 'block';
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+  } catch (err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('empty-state').style.display = conversationHistory.length <= 2 ? 'block' : 'none';
+    const eb = document.getElementById('error-box');
+    eb.textContent = 'Something went wrong: ' + err.message + '. Please try again.';
+    eb.style.display = 'block';
+    if (conversationHistory.length >= 2) document.getElementById('output').style.display = 'block';
+  }
+
+  btn.disabled = false;
+}
+
+function renderData(d) {
+  const t = d.totals || {};
+  const bal = t.net_balance || 0;
+
+  // Header badges
+  if (d.date) {
+    const db = document.getElementById('date-badge');
+    db.textContent = d.date;
+    db.style.display = 'block';
+  }
+  const bb = document.getElementById('balance-badge');
+  bb.style.display = 'block';
+  if (bal < 0) {
+    bb.style.background = 'rgba(105,240,174,0.1)';
+    bb.style.border = '1px solid rgba(105,240,174,0.2)';
+    bb.style.color = '#69f0ae';
+    bb.textContent = fmt(Math.abs(bal)) + ' kcal deficit';
+  } else {
+    bb.style.background = 'rgba(255,138,128,0.1)';
+    bb.style.border = '1px solid rgba(255,138,128,0.2)';
+    bb.style.color = '#ff8a80';
+    bb.textContent = '+' + fmt(bal) + ' surplus';
+  }
+
+  // Macro chips
+  updateChip('cal', t.intake_calories || 0, TARGETS.calories, '#ffd166');
+  updateChip('pro', t.intake_protein || 0, TARGETS.protein, '#06d6a0');
+  updateChip('carb', t.intake_carbs || 0, TARGETS.carbs, '#118ab2');
+  updateChip('fat', t.intake_fat || 0, TARGETS.fat, '#ef476f');
+
+  // Build table
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+
+  (d.meals || []).forEach(meal => {
+    (meal.items || []).forEach((item, i) => {
+      const tr = document.createElement('tr');
+      if (i === 0) {
+        const td = document.createElement('td');
+        td.className = 'cat-cell';
+        td.rowSpan = meal.items.length;
+        td.innerHTML = `<div>${escHtml(meal.category)}</div><div class="cat-kcal">${meal.subtotal_calories} kcal</div>`;
+        tr.appendChild(td);
+      }
+      tr.innerHTML += `
+        <td class="food-cell">${escHtml(item.food)}</td>
+        <td class="num">${fmt(item.calories)}</td>
+        <td class="num">${fmt(item.protein)}</td>
+        <td class="num">${fmt(item.carbs)}</td>
+        <td class="num">${fmt(item.fat)}</td>`;
+      tbody.appendChild(tr);
+    });
+  });
+
+  // Subtotal row
+  addSubtotalRow(tbody, 'Subtotal (Intake)',
+    fmt(t.intake_calories), fmt(t.intake_protein), fmt(t.intake_carbs), fmt(t.intake_fat));
+
+  // Divider rows
+  addDividerRow(tbody, 'TEF (10% of intake)', fmt(t.tef));
+  addDividerRow(tbody, 'BMR', fmt(t.bmr));
+  addDividerRow(tbody, 'NEAT', fmt(t.neat));
+  addDividerRow(tbody, 'Exercise', fmt(t.exercise_calories));
+
+  // Total net row
+  const proColor = (t.intake_protein || 0) >= TARGETS.protein ? '#69f0ae' : '#fff';
+  const carbColor = (t.intake_carbs || 0) >= TARGETS.carbs ? '#69f0ae' : '#fff';
+  const fatColor = (t.intake_fat || 0) >= TARGETS.fat ? '#69f0ae' : '#fff';
+  const balColor2 = bal < 0 ? '#69f0ae' : '#ff8a80';
+  const balText2 = bal < 0 ? fmt(Math.abs(bal)) + ' deficit' : '+' + fmt(bal) + ' surplus';
+
+  const tr = document.createElement('tr');
+  tr.className = 'total-row';
+  tr.innerHTML = `
+    <td colspan="2" style="color:#fff">TOTAL (Net)</td>
+    <td class="num">
+      <div>${fmt(t.intake_calories)} / ${TARGETS.calories}</div>
+      <div class="net-label" style="color:${balColor2}">${balText2}</div>
+    </td>
+    <td class="num" style="color:${proColor}">${fmt(t.intake_protein)} / ${TARGETS.protein}</td>
+    <td class="num" style="color:${carbColor}">${fmt(t.intake_carbs)} / ${TARGETS.carbs}</td>
+    <td class="num" style="color:${fatColor}">${fmt(t.intake_fat)} / ${TARGETS.fat}</td>`;
+  tbody.appendChild(tr);
+
+  // Summary cards
+  if (d.summary) {
+    document.getElementById('sc-intake').textContent = d.summary.intake_vs_target || '—';
+    document.getElementById('sc-balance').textContent = d.summary.balance_summary || '—';
+    document.getElementById('sc-protein').textContent = d.summary.protein_summary || '—';
+  }
+
+  // End notes
+  const en = document.getElementById('end-notes');
+  if (d.end_notes) {
+    en.textContent = '💡 ' + d.end_notes;
+    en.style.display = 'block';
+  } else {
+    en.style.display = 'none';
+  }
+
+  // Weekly
+  const wb = document.getElementById('weekly-body');
+  wb.innerHTML = '';
+  if (d.weekly && d.weekly.length > 0) {
+    document.getElementById('weekly-wrap').style.display = 'block';
+    d.weekly.forEach(row => {
+      const nc = row.net_calories || 0;
+      const dd = row.daily_deficit || 0;
+      const cd = row.cumulative_deficit || 0;
+      const tr2 = document.createElement('tr');
+      tr2.innerHTML = `
+        <td class="day-name">${escHtml(row.day)}</td>
+        <td style="color:${nc < 0 ? '#69f0ae' : '#ff8a80'}">${fmt(nc)}</td>
+        <td style="color:rgba(255,255,255,0.7)">${fmt(row.protein)}</td>
+        <td style="color:${dd < 0 ? '#69f0ae' : '#ff8a80'}">${fmt(dd)}</td>
+        <td style="color:${cd < 0 ? '#69f0ae' : '#ff8a80'}">${fmt(cd)}</td>
+        <td style="color:rgba(255,255,255,0.6)">${fmt(row.weekly_avg)}</td>`;
+      wb.appendChild(tr2);
+    });
+  }
+}
+
+function updateChip(key, value, target, color) {
+  const pct = Math.min(100, Math.round((value / target) * 100));
+  const over = value > target;
+  document.getElementById('cv-' + key).textContent = fmt(value);
+  const pb = document.getElementById('pb-' + key);
+  pb.style.width = pct + '%';
+  pb.style.background = over ? '#ff6b6b' : color;
+  document.getElementById('pp-' + key).textContent = pct + '%';
+}
+
+function addSubtotalRow(tbody, label, cal, pro, carb, fat) {
+  const tr = document.createElement('tr');
+  tr.className = 'subtotal-row';
+  tr.innerHTML = `
+    <td colspan="2">${escHtml(label)}</td>
+    <td class="num">${cal}</td>
+    <td class="num">${pro}</td>
+    <td class="num">${carb}</td>
+    <td class="num">${fat}</td>`;
+  tbody.appendChild(tr);
+}
+
+function addDividerRow(tbody, label, cal) {
+  const tr = document.createElement('tr');
+  tr.className = 'divider-row';
+  tr.innerHTML = `
+    <td colspan="2">${escHtml(label)}</td>
+    <td class="neg">${cal}</td>
+    <td class="num">—</td>
+    <td class="num">—</td>
+    <td class="num">—</td>`;
+  tbody.appendChild(tr);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
