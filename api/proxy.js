@@ -1,6 +1,13 @@
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+})
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -8,6 +15,17 @@ export default async function handler(req, res) {
     return;
   }
 
+  const today = new Date().toISOString().split('T')[0];
+  const historyKey = `history:${today}`;
+
+  // GET — load saved history
+  if (req.method === 'GET') {
+    const history = await redis.get(historyKey) || [];
+    res.status(200).json({ history });
+    return;
+  }
+
+  // POST — send message and save
   const { messages, system } = req.body;
 
   const geminiMessages = messages.map(m => ({
@@ -30,5 +48,9 @@ export default async function handler(req, res) {
 
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+  // Save updated history to Redis (expires after 7 days)
+  await redis.set(historyKey, messages, { ex: 604800 });
+
   res.status(200).json({ content: [{ text }] });
 }
